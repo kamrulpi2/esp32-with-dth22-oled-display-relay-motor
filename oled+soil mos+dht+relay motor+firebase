@@ -24,9 +24,9 @@ DHT dht(DHTPIN, DHTTYPE);
 #include "addons/TokenHelper.h"
 #include "addons/RTDBHelper.h"
 
-#define WIFI_SSID "ROBO TECH VALLEY"
-#define WIFI_PASSWORD "roboninja"
-#define API_KEY "AIzaSyCCnHgNaacNQlhAt8"
+#define WIFI_SSID "LLEY"
+#define WIFI_PASSWORD "robja"
+#define API_KEY "AlhAt8"
 #define DATABASE_URL "tuhin/"
 
 FirebaseData fbdo;
