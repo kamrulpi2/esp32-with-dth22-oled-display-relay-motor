@@ -26,8 +26,8 @@ DHT dht(DHTPIN, DHTTYPE);
 #include "addons/TokenHelper.h"
 #include "addons/RTDBHelper.h"
 
-#define WIFI_SSID "ROBO TECH VALLEY"
-#define WIFI_PASSWORD "roboninja"
+#define WIFI_SSID "ROB"
+#define WIFI_PASSWORD "rinja"
 #define API_KEY ""
 #define DATABASE_URL ""
 
