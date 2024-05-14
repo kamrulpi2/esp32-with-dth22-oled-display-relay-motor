@@ -26,8 +26,8 @@ DHT dht(DHTPIN, DHTTYPE);
 
 #define WIFI_SSID "ROBO TECH VALLEY"
 #define WIFI_PASSWORD "roboninja"
-#define API_KEY "AIzaSyCCn5ffP3xGPDTEMUbsMuHgNaacNQlhAt8"
-#define DATABASE_URL "tuhin-a98b8-default-rtdb.firebaseio.com/"
+#define API_KEY "AIzaSyCCnHgNaacNQlhAt8"
+#define DATABASE_URL "tuhin/"
 
 FirebaseData fbdo;
 FirebaseAuth auth;
