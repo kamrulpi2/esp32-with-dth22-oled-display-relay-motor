@@ -1,0 +1,158 @@
+#define DHTTYPE DHT22
+#include <DHT_U.h>
+#include <Arduino.h>
+#if defined(ESP32)
+#include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
+#include <Firebase_ESP_Client.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <SparkFun_Qwiic_Scale_NAU7802_Arduino_Library.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+#define DHTPIN 14
+DHT dht(DHTPIN, DHTTYPE);
+
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
+
+#define WIFI_SSID "Engineers Home"
+#define WIFI_PASSWORD "sky12345"
+#define API_KEY "AIzaSyCCAt8"
+#define DATABASE_URL "tuhi/"
+
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+bool signupOK = false;
+
+#define RELAY_PIN 13
+#define AOUT_PIN 36
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+
+  pinMode(DHTPIN, INPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+
+  if (Firebase.signUp(&config, &auth, "", "")) {
+    Serial.println("Sign up successful");
+    signupOK = true;
+  } else {
+    Serial.printf("Sign up failed: %s\n", config.signer.signupError.message.c_str());
+  }
+
+  config.token_status_callback = tokenStatusCallback;
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;) {}
+  }
+  delay(2000);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+}
+
+void loop() {
+  delay(5000);
+
+
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  float value = analogRead(AOUT_PIN); 
+  
+  float value1 = map(value, 2300, 900, 0, 100);
+
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+  } else {
+    Serial.print("Humidity: ");
+    Serial.println(h);
+    Serial.print("Temperature: ");
+    Serial.println(t);
+    Serial.print("Moisture value: ");
+    Serial.println(value1);
+
+    // Send data to Firebase
+    if (Firebase.ready() && signupOK) {
+      Firebase.RTDB.set(&fbdo, "/humidity", String(h));
+      Firebase.RTDB.set(&fbdo, "/temperature", String(t));
+      Firebase.RTDB.set(&fbdo, "/Moisture value:", String(value1));
+      controlRelay(t, value);
+    } else {
+      Serial.println("Firebase not ready or signup failed");
+      Serial.println("Reason: " + fbdo.errorReason());
+    }
+
+    // Display data on OLED
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.print("Temperature: ");
+    display.setTextSize(1);
+    display.setCursor(0, 10);
+    display.print(t);
+    display.print(" ");
+    display.setTextSize(1);
+    display.cp437(true);
+    display.write(45);
+    display.setTextSize(1);
+    display.print("C");
+
+    display.setTextSize(1);
+    display.setCursor(0, 20);
+    display.print("Humidity: ");
+    display.setTextSize(1);
+    display.setCursor(0, 30);
+    display.print(h);
+    display.print(" %");
+
+    display.setTextSize(1);
+    display.setCursor(0, 40);
+    display.print("Moisture value: ");
+    display.setTextSize(1);
+    display.setCursor(0, 50);
+    display.print(value1);
+    display.print(" %");
+
+    display.display();
+  }
+}
+
+void controlRelay(float temp, float value) {
+  float threshold = 38.0; // Temperature threshold
+  float soilThreshold = 1300.00; // Soil moisture threshold
+
+  if (temp >= threshold || value > soilThreshold ) {
+    digitalWrite(RELAY_PIN, HIGH); // Turn on the relay
+    Serial.println("Relay ON");
+  } else {
+    digitalWrite(RELAY_PIN, LOW); // Turn off the relay
+    Serial.println("Relay OFF");
+  }
+}
