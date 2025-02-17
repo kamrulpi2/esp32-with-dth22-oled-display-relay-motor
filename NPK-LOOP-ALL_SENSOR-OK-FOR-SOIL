@@ -29,8 +29,8 @@ DHT dht(DHTPIN, DHTTYPE);
 
 #define WIFI_SSID "Engineers Home"
 #define WIFI_PASSWORD "sky12345"
-#define API_KEY "AIzaSyCCn5ffP3xGPDTEMUbsMuHgNaacNQlhAt8"
-#define DATABASE_URL "tuhin-a98b8-default-rtdb.firebaseio.com/"
+#define API_KEY "AIzaNQlhAt8"
+#define DATABASE_URL "tuhin-a98b8-decom/"
 
 FirebaseData fbdo;
 FirebaseAuth auth;
