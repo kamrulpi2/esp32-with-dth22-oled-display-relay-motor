@@ -1,0 +1,9 @@
+Component	ESP32 Pin
+DHT22 Temperature & Humidity Sensor	D14
+Buzzer	D4
+Rain Sensor	D23
+MQ2 Gas Sensor	D2
+TDS/Moisture Sensor (Analog Input)	D36 (AOUT_PIN)
+Relay	D13
+OLED Display (I2C)	SDA → D21, SCL → D22
+Wi-Fi Connectivity	Built-in
