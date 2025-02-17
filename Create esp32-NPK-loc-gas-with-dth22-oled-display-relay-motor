@@ -1,0 +1,171 @@
+#define DHTTYPE DHT22
+#include <DHT_U.h>
+#include <Arduino.h>
+#if defined(ESP32)
+#include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
+#include <Firebase_ESP_Client.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <SparkFun_Qwiic_Scale_NAU7802_Arduino_Library.h>
+#include <ESP32Servo.h> 
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+#define DHTPIN 14
+#define BUZZER_PIN 4
+#define RAIN_SENSOR_PIN 23
+#define MQ2_PIN 2
+#define LDR1_PIN 18
+#define LDR2_PIN 19
+#define SERVO1_PIN 35
+#define SERVO2_PIN 33
+DHT dht(DHTPIN, DHTTYPE);
+
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
+
+#define WIFI_SSID "Engineers Home"
+#define WIFI_PASSWORD "sky12345"
+#define API_KEY "AIzaSyCCn5ffP3xGPDTEMUbsMuHgNaacNQlhAt8"
+#define DATABASE_URL "tuhin-a98b8-default-rtdb.firebaseio.com/"
+
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+bool signupOK = false;
+
+#define RELAY_PIN 13
+#define AOUT_PIN 36
+
+Servo servo1;
+Servo servo2;
+
+void setup() {
+ Serial.begin(115200);
+ dht.begin();
+
+ pinMode(DHTPIN, INPUT);
+ pinMode(RELAY_PIN, OUTPUT);
+ pinMode(BUZZER_PIN, OUTPUT);
+ pinMode(RAIN_SENSOR_PIN, INPUT);
+ pinMode(MQ2_PIN, INPUT);
+ pinMode(LDR1_PIN, INPUT);
+ pinMode(LDR2_PIN, INPUT);
+
+ servo1.attach(SERVO1_PIN);
+ servo2.attach(SERVO2_PIN);
+ servo1.write(90);
+ servo2.write(90);
+
+   //Start buzzer for 1 second when device turns on
+ digitalWrite(BUZZER_PIN, HIGH);
+ delay(1000);
+ digitalWrite(BUZZER_PIN, LOW);
+
+ WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+ while (WiFi.status() != WL_CONNECTED) delay(300);
+
+ config.api_key = API_KEY;
+ config.database_url = DATABASE_URL;
+ Firebase.signUp(&config, &auth, "", "");
+ config.token_status_callback = tokenStatusCallback;
+ Firebase.begin(&config, &auth);
+ Firebase.reconnectWiFi(true);
+
+ if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) for (;;) {}
+ delay(2000);
+ display.clearDisplay();
+ display.setTextColor(WHITE);
+}
+
+void loop() {
+ delay(5000);
+
+ // Read sensor values
+ float h = dht.readHumidity();
+ float t = dht.readTemperature();
+ float value = analogRead(AOUT_PIN);
+ float value1 = map(value, 2300, 900, 0, 100);
+ float nitrogen = 33, phosphorus = 34, potassium = 36, ph = 7.6, ox = 91;
+ String loc = "DHAKA,1200";
+
+ int rainSensorValue = digitalRead(RAIN_SENSOR_PIN);
+ String rainStatus = (rainSensorValue == LOW) ? "Rain" : "No Rain";
+
+ int gasSensorValue = analogRead(MQ2_PIN);
+ String gasStatus = (gasSensorValue > 300) ? "Gas Detected" : "No Gas";
+
+ int ldr1Value = analogRead(LDR1_PIN);
+ int ldr2Value = analogRead(LDR2_PIN);
+ controlServos(ldr1Value, ldr2Value);
+
+ // Display data on OLED
+ displayData(t, h, value1, rainStatus, gasStatus, nitrogen, phosphorus, potassium);
+
+ // Update Firebase
+ if (Firebase.ready() && signupOK) {
+   Firebase.RTDB.set(&fbdo, "/humidity", String(h));
+   Firebase.RTDB.set(&fbdo, "/temperature", String(t));
+   Firebase.RTDB.set(&fbdo, "/Moisture", String(value1));
+   Firebase.RTDB.set(&fbdo, "/Nitrogen", String(nitrogen));
+   Firebase.RTDB.set(&fbdo, "/Phosphorus", String(phosphorus));
+   Firebase.RTDB.set(&fbdo, "/Potassium", String(potassium));
+   Firebase.RTDB.set(&fbdo, "/PH", String(ph));
+   Firebase.RTDB.set(&fbdo, "/AirQuality", String(ox));
+   Firebase.RTDB.set(&fbdo, "/Location", loc);
+   Firebase.RTDB.set(&fbdo, "/RainStatus", rainStatus);
+   Firebase.RTDB.set(&fbdo, "/GasStatus", gasStatus);
+   Firebase.RTDB.set(&fbdo, "/LDR1", String(ldr1Value));
+   Firebase.RTDB.set(&fbdo, "/LDR2", String(ldr2Value));
+ } else {
+   Serial.println("Firebase not ready or signup failed");
+   Serial.println("Reason: " + fbdo.errorReason());
+ }
+
+ controlRelay(t, value);
+}
+
+void controlRelay(float temp, float value) {
+ float tempThreshold = 38.0;
+ float moistureThreshold = 1300.0;
+ if (temp >= tempThreshold || value > moistureThreshold) digitalWrite(RELAY_PIN, HIGH);
+ else digitalWrite(RELAY_PIN, LOW);
+}
+
+void controlServos(int ldr1Value, int ldr2Value) {
+ int threshold = 50;
+ if (abs(ldr1Value - ldr2Value) > threshold) {
+   if (ldr1Value > ldr2Value) {
+     servo1.write(servo1.read() + 1);
+     servo2.write(servo2.read() - 1);
+   } else {
+     servo1.write(servo1.read() - 1);
+     servo2.write(servo2.read() + 1);
+   }
+   delay(10);
+ }
+}
+
+void displayData(float t, float h, float value1, String rainStatus, String gasStatus, float nitrogen, float phosphorus, float potassium) {
+ display.clearDisplay();
+ display.setTextSize(1);
+
+ display.setCursor(0, 10); display.print("T: "); display.print(t); display.print(" C");
+ display.setCursor(0, 20); display.print("H: "); display.print(h); display.print(" %");
+ display.setCursor(0, 30); display.print("M: "); display.print(value1); display.print(" %");
+ display.setCursor(0, 40); display.print("Rain: "); display.print(rainStatus);
+ display.setCursor(0, 50); display.print("Gas: "); display.print(gasStatus);
+ display.setCursor(60, 10); display.print("  N: "); display.print(nitrogen);
+ display.setCursor(60, 20); display.print("  P: "); display.print(phosphorus);
+ display.setCursor(60, 30); display.print("  K: "); display.print(potassium);
+
+ display.display();
+}
